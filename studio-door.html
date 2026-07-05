@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>上傳後台</title>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ★ 設定區：填入和 index.html 完全相同的兩個值 ★
+     這裡只需要 anon key（公開金鑰）。
+     寫入權限由「你的登入帳號」控管，所以不需要任何祕密金鑰。
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+  const CONFIG = {
+    SUPABASE_URL:      "https://afhwwzkfwtfjfbvodgye.supabase.co",
+    SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmaHd3emtmd3RmamZidm9kZ3llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNDY1MjMsImV4cCI6MjA5ODgyMjUyM30.HBxi7WRUof7lxq6ybNfKOagDrX1JsEjGBwqGnXIz-4E",
+    BUCKET:            "works",
+    MAX_KB:            300,      // 自動壓縮目標（單位 KB）
+    MAX_DIMENSION:     1600      // 長邊最大像素
+  };
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&family=Noto+Sans+TC:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --paper:   #F7F5F1;
+    --ink:     #1C1A17;
+    --seal:    #A32E24;
+    --stone:   #8B8680;
+    --hairline:#E4E0D8;
+    --card:    #FFFFFF;
+    --ok:      #3D7A45;
+    --serif: "Noto Serif TC", "PMingLiU", serif;
+    --sans:  "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame { max-width: 720px; margin: 0 auto; padding: 0 20px 72px; }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 44px 0 28px;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 28px;
+  }
+  .seal {
+    width: 38px; height: 38px;
+    background: var(--seal); color: var(--paper);
+    font-family: var(--serif); font-weight: 600; font-size: 20px;
+    display: grid; place-items: center;
+    border-radius: 3px; user-select: none;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600; font-size: 22px; letter-spacing: 0.14em;
+  }
+  .whoami {
+    margin-left: auto;
+    color: var(--stone); font-size: 12.5px;
+    display: none; align-items: center; gap: 12px;
+  }
+  .whoami.visible { display: flex; }
+  .linklike {
+    background: none; border: none; cursor: pointer;
+    color: var(--seal); font: inherit; letter-spacing: 0.06em;
+    padding: 2px;
+  }
+  .linklike:hover { text-decoration: underline; }
+
+  .card-box {
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 26px 24px;
+    margin-bottom: 20px;
+  }
+
+  label { display: block; font-size: 13px; color: var(--stone); letter-spacing: 0.08em; margin: 14px 0 5px; }
+  input[type=email], input[type=password], input[type=text] {
+    width: 100%;
+    font: inherit; color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 9px 12px;
+  }
+  input:focus-visible { outline: 2px solid var(--seal); outline-offset: 1px; }
+
+  .btn {
+    font: inherit; letter-spacing: 0.12em; cursor: pointer;
+    border-radius: 4px; padding: 10px 22px;
+    border: 1px solid var(--seal);
+    background: var(--seal); color: var(--paper);
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .9; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--seal); }
+  .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .form-msg { margin-top: 14px; font-size: 13.5px; color: var(--seal); min-height: 1.4em; }
+
+  /* 拖放區 */
+  .dropzone {
+    border: 1.5px dashed var(--hairline);
+    border-radius: 6px;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--stone);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone.dragover { border-color: var(--seal); background: #FBF3F1; }
+  .dropzone strong { color: var(--ink); font-weight: 500; }
+  .dropzone .sub { font-size: 12.5px; margin-top: 6px; }
+
+  /* 佇列 */
+  .queue { margin-top: 20px; display: none; }
+  .queue.visible { display: block; }
+
+  .item {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 14px;
+    padding: 16px 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .item img {
+    width: 64px; height: 64px; object-fit: cover;
+    border-radius: 4px; background: var(--hairline);
+  }
+  .item .fields { display: grid; gap: 8px; }
+  .item input { padding: 7px 10px; font-size: 14px; }
+  .item .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 520px) { .item .row2 { grid-template-columns: 1fr; } }
+
+  .item .side {
+    display: flex; flex-direction: column;
+    align-items: flex-end; justify-content: space-between;
+    min-width: 96px;
+  }
+  .status { font-size: 12px; color: var(--stone); text-align: right; letter-spacing: 0.04em; max-width: 150px; }
+  .status.ok   { color: var(--ok); }
+  .status.err  { color: var(--seal); }
+  .remove {
+    background: none; border: none; cursor: pointer;
+    color: var(--stone); font-size: 16px; padding: 4px;
+  }
+  .remove:hover { color: var(--seal); }
+
+  .actions {
+    display: flex; align-items: center; gap: 14px;
+    margin-top: 20px; padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+  }
+  .summary { font-size: 13px; color: var(--stone); }
+
+  footer { margin-top: 8px; }
+  footer a { color: var(--stone); font-size: 12.5px; letter-spacing: 0.1em; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+
+<body>
+<div class="frame">
+
+  <header>
+    <div class="seal" aria-hidden="true">印</div>
+    <h1>上傳後台</h1>
+    <div class="whoami" id="whoami">
+      <span id="userEmail"></span>
+      <button class="linklike" id="logoutBtn">登出</button>
+    </div>
+  </header>
+
+  <!-- 登入 -->
+  <section class="card-box" id="loginBox">
+    <label for="email">Email</label>
+    <input type="email" id="email" autocomplete="username" placeholder="你在 Supabase 建立的帳號">
+    <label for="password">密碼</label>
+    <input type="password" id="password" autocomplete="current-password">
+    <div class="form-msg" id="loginMsg"></div>
+    <button class="btn" id="loginBtn">登入</button>
+  </section>
+
+  <!-- 上傳 -->
+  <section class="hidden" id="uploadBox">
+    <div class="card-box">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0"
+           aria-label="選擇或拖放圖片">
+        <strong>拖放圖片到這裡，或點擊選擇</strong>
+        <div class="sub">可一次多張・會自動壓縮到 <span id="maxKbLabel"></span>KB 以下再上傳</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" multiple class="hidden">
+
+      <div class="queue" id="queue">
+        <div id="queueList"></div>
+        <div class="actions">
+          <button class="btn" id="uploadAllBtn">全部上傳</button>
+          <span class="summary" id="summary"></span>
+        </div>
+      </div>
+    </div>
+    <footer><a href="./index.html" target="_blank" rel="noopener">→ 打開作品集網站</a></footer>
+  </section>
+
+  <datalist id="catList"></datalist>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  let session = null;   // { access_token, email }
+  let queue   = [];     // { id, file, previewUrl, node, status, uploadedUrl, done }
+  let nextId  = 1;
+  let running = false;
+
+  $("maxKbLabel").textContent = CONFIG.MAX_KB;
+
+  /* ══════════ 共用 ══════════ */
+
+  function authHeaders(json) {
+    const h = {
+      apikey: CONFIG.SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + session.access_token
+    };
+    if (json) h["Content-Type"] = "application/json";
+    return h;
+  }
+
+  function hint(status) {
+    if (status === 401) return "：登入可能已逾時，請登出後重新登入";
+    if (status === 403) return "：請確認 admin-setup.sql 裡的 email 已改成你的登入帳號並執行過";
+    if (status === 409) return "：檔名重複，請再按一次重試";
+    return "";
+  }
+
+  function fmtKB(bytes) { return Math.round(bytes / 1024) + "KB"; }
+
+  function newFileName(ext) {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" +
+           p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + "-" +
+           Math.random().toString(36).slice(2, 6) + "." + ext;
+  }
+
+  /* ══════════ 登入 ══════════ */
+
+  async function login() {
+    const email = $("email").value.trim();
+    const pass  = $("password").value;
+    if (!email || !pass) { $("loginMsg").textContent = "請填寫 Email 和密碼"; return; }
+
+    if (CONFIG.SUPABASE_URL.includes("YOUR-PROJECT") ||
+        CONFIG.SUPABASE_ANON_KEY === "YOUR_ANON_KEY") {
+      $("loginMsg").textContent = "尚未設定：請打開 admin.html 最上方設定區，填入和 index.html 相同的 URL 與 anon key";
+      return;
+    }
+
+    $("loginBtn").disabled = true;
+    $("loginMsg").textContent = "登入中…";
+
+    try {
+      const res = await fetch(
+        CONFIG.SUPABASE_URL + "/auth/v1/token?grant_type=password",
+        {
+          method: "POST",
+          headers: { apikey: CONFIG.SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: pass })
+        });
+      const data = await res.json();
+      if (!res.ok) {
+        const raw = data.error_description || data.msg || ("HTTP " + res.status);
+        throw new Error(/invalid/i.test(raw)
+          ? "帳號或密碼錯誤（建立使用者時記得勾選 Auto Confirm User）"
+          : raw);
+      }
+      session = { access_token: data.access_token, email: (data.user && data.user.email) || email };
+      $("password").value = "";
+      $("loginMsg").textContent = "";
+      $("loginBox").classList.add("hidden");
+      $("uploadBox").classList.remove("hidden");
+      $("userEmail").textContent = session.email;
+      $("whoami").classList.add("visible");
+      loadCategories();
+    } catch (err) {
+      $("loginMsg").textContent = "登入失敗：" + err.message;
+    } finally {
+      $("loginBtn").disabled = false;
+    }
+  }
+
+  function logout() {
+    session = null;
+    queue.forEach(it => URL.revokeObjectURL(it.previewUrl));
+    queue = [];
+    $("queueList").innerHTML = "";
+    $("queue").classList.remove("visible");
+    $("uploadBox").classList.add("hidden");
+    $("loginBox").classList.remove("hidden");
+    $("whoami").classList.remove("visible");
+    $("summary").textContent = "";
+  }
+
+  async function loadCategories() {
+    try {
+      const res = await fetch(
+        CONFIG.SUPABASE_URL + "/rest/v1/works?select=category",
+        { headers: authHeaders(false) });
+      if (!res.ok) return;
+      const rows = await res.json();
+      const cats = [...new Set(rows.map(r => r.category).filter(Boolean))];
+      $("catList").innerHTML = cats.map(c => {
+        const o = document.createElement("option");
+        o.value = c;
+        return o.outerHTML;
+      }).join("");
+    } catch (e) { /* 分類選單載不到不影響上傳 */ }
+  }
+
+  /* ══════════ 圖片壓縮 ══════════ */
+
+  function encode(canvas, type, q) {
+    return new Promise(res => canvas.toBlob(res, type, q));
+  }
+
+  let bestTypeCache = null;
+  async function bestType() {          // Safari 舊版不支援輸出 WebP，改用 JPEG
+    if (bestTypeCache) return bestTypeCache;
+    const c = document.createElement("canvas");
+    c.width = c.height = 2;
+    const b = await encode(c, "image/webp", 0.8);
+    bestTypeCache = (b && b.type === "image/webp") ? "webp" : "jpeg";
+    return bestTypeCache;
+  }
+
+  async function loadBitmap(file) {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch (e) {
+      return await new Promise((res, rej) => {
+        const img = new Image();
+        img.onload = () => res(img);
+        img.onerror = () => rej(new Error("無法讀取圖片"));
+        img.src = URL.createObjectURL(file);
+      });
+    }
+  }
+
+  async function compressImage(file) {
+    const src  = await loadBitmap(file);
+    const type = await bestType();
+    const LIMIT = CONFIG.MAX_KB * 1024;
+    const W = src.width  || src.naturalWidth;
+    const H = src.height || src.naturalHeight;
+
+    let maxDim = Math.min(CONFIG.MAX_DIMENSION, Math.max(W, H));
+    let smallest = null;
+
+    for (let round = 0; round < 4; round++) {
+      const scale = Math.min(1, maxDim / Math.max(W, H));
+      const cw = Math.max(1, Math.round(W * scale));
+      const ch = Math.max(1, Math.round(H * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      const ctx = canvas.getContext("2d");
+      if (type === "jpeg") { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cw, ch); }
+      ctx.drawImage(src, 0, 0, cw, ch);
+
+      for (let q = 0.85; q >= 0.5; q -= 0.07) {
+        const blob = await encode(canvas, "image/" + type, q);
+        if (!blob) throw new Error("瀏覽器不支援圖片壓縮");
+        if (!smallest || blob.size < smallest.size) smallest = blob;
+        if (blob.size <= LIMIT) {
+          return { blob: blob, ext: type === "webp" ? "webp" : "jpg" };
+        }
+      }
+      maxDim = Math.round(maxDim * 0.75);   // 還太大 → 縮小尺寸再壓一輪
+    }
+    return { blob: smallest, ext: type === "webp" ? "webp" : "jpg" };
+  }
+
+  /* ══════════ 佇列 ══════════ */
+
+  function addFiles(fileList) {
+    const files = [...fileList].filter(f => f.type.startsWith("image/"));
+    if (!files.length) return;
+
+    files.forEach(file => {
+      const it = {
+        id: nextId++,
+        file: file,
+        previewUrl: URL.createObjectURL(file),
+        uploadedUrl: null,
+        done: false,
+        node: null
+      };
+      it.node = buildItemNode(it);
+      $("queueList").appendChild(it.node);
+      queue.push(it);
+    });
+    $("queue").classList.add("visible");
+    updateSummary();
+  }
+
+  function buildItemNode(it) {
+    const div = document.createElement("div");
+    div.className = "item";
+
+    const img = document.createElement("img");
+    img.src = it.previewUrl;
+    img.alt = "";
+
+    const fields = document.createElement("div");
+    fields.className = "fields";
+
+    const title = document.createElement("input");
+    title.type = "text";
+    title.placeholder = "作品標題";
+    title.value = it.file.name.replace(/\.[^.]+$/, "");
+    title.setAttribute("aria-label", "作品標題");
+
+    const row2 = document.createElement("div");
+    row2.className = "row2";
+    const cat = document.createElement("input");
+    cat.type = "text";
+    cat.placeholder = "分類（選填）";
+    cat.setAttribute("list", "catList");
+    cat.setAttribute("aria-label", "分類");
+    const desc = document.createElement("input");
+    desc.type = "text";
+    desc.placeholder = "作品說明（選填）";
+    desc.setAttribute("aria-label", "作品說明");
+    row2.appendChild(cat); row2.appendChild(desc);
+    fields.appendChild(title); fields.appendChild(row2);
+
+    const side = document.createElement("div");
+    side.className = "side";
+    const rm = document.createElement("button");
+    rm.className = "remove";
+    rm.textContent = "✕";
+    rm.setAttribute("aria-label", "移除這張");
+    rm.addEventListener("click", () => removeItem(it));
+    const st = document.createElement("div");
+    st.className = "status";
+    st.textContent = fmtKB(it.file.size);
+    side.appendChild(rm); side.appendChild(st);
+
+    div.appendChild(img); div.appendChild(fields); div.appendChild(side);
+    it.inputs = { title: title, cat: cat, desc: desc };
+    it.statusEl = st;
+    it.removeBtn = rm;
+    return div;
+  }
+
+  function removeItem(it) {
+    if (running) return;
+    URL.revokeObjectURL(it.previewUrl);
+    it.node.remove();
+    queue = queue.filter(q => q !== it);
+    if (!queue.length) $("queue").classList.remove("visible");
+    updateSummary();
+  }
+
+  function setStatus(it, text, cls) {
+    it.statusEl.textContent = text;
+    it.statusEl.className = "status" + (cls ? " " + cls : "");
+  }
+
+  function updateSummary() {
+    const done = queue.filter(q => q.done).length;
+    $("summary").textContent = queue.length
+      ? "共 " + queue.length + " 張，已完成 " + done + " 張"
+      : "";
+  }
+
+  /* ══════════ 上傳 ══════════ */
+
+  async function uploadItem(it) {
+    if (!it.uploadedUrl) {
+      setStatus(it, "壓縮中…");
+      const out = await compressImage(it.file);
+      const name = newFileName(out.ext);
+
+      setStatus(it, "上傳圖片中…（" + fmtKB(out.blob.size) + "）");
+      const up = await fetch(
+        CONFIG.SUPABASE_URL + "/storage/v1/object/" + CONFIG.BUCKET + "/" + name,
+        {
+          method: "POST",
+          headers: Object.assign(authHeaders(false), {
+            "Content-Type": out.blob.type,
+            "x-upsert": "false"
+          }),
+          body: out.blob
+        });
+      if (!up.ok) throw new Error("圖片上傳失敗（HTTP " + up.status + "）" + hint(up.status));
+      it.uploadedUrl = CONFIG.SUPABASE_URL + "/storage/v1/object/public/" +
+                       CONFIG.BUCKET + "/" + name;
+      it.sizeAfter = out.blob.size;
+    }
+
+    setStatus(it, "寫入資料中…");
+    const row = {
+      title: it.inputs.title.value.trim() || it.file.name.replace(/\.[^.]+$/, ""),
+      image_url: it.uploadedUrl
+    };
+    if (it.inputs.cat.value.trim())  row.category    = it.inputs.cat.value.trim();
+    if (it.inputs.desc.value.trim()) row.description = it.inputs.desc.value.trim();
+
+    const ins = await fetch(CONFIG.SUPABASE_URL + "/rest/v1/works", {
+      method: "POST",
+      headers: Object.assign(authHeaders(true), { Prefer: "return=minimal" }),
+      body: JSON.stringify(row)
+    });
+    if (!ins.ok) throw new Error("建檔失敗（HTTP " + ins.status + "）" + hint(ins.status));
+
+    it.done = true;
+    [it.inputs.title, it.inputs.cat, it.inputs.desc].forEach(i => i.disabled = true);
+    it.removeBtn.classList.add("hidden");
+    setStatus(it, "✓ 完成（" + fmtKB(it.sizeAfter || it.file.size) + "）", "ok");
+  }
+
+  async function uploadAll() {
+    if (running) return;
+    const todo = queue.filter(q => !q.done);
+    if (!todo.length) return;
+
+    running = true;
+    $("uploadAllBtn").disabled = true;
+    let fail = 0;
+
+    for (const it of todo) {
+      try {
+        await uploadItem(it);
+      } catch (err) {
+        fail++;
+        setStatus(it, "✗ " + err.message, "err");
+      }
+      updateSummary();
+    }
+
+    running = false;
+    $("uploadAllBtn").disabled = false;
+    $("summary").textContent += fail
+      ? "，" + fail + " 張失敗（修正後可直接再按一次重試）"
+      : "　·　全部完成 🎉";
+  }
+
+  /* ══════════ 事件 ══════════ */
+
+  $("loginBtn").addEventListener("click", login);
+  $("password").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+  $("logoutBtn").addEventListener("click", logout);
+
+  const dz = $("dropzone");
+  dz.addEventListener("click", () => $("fileInput").click());
+  dz.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileInput").click(); }
+  });
+  ["dragenter", "dragover"].forEach(ev =>
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("dragover"); }));
+  ["dragleave", "drop"].forEach(ev =>
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("dragover"); }));
+  dz.addEventListener("drop", e => addFiles(e.dataTransfer.files));
+
+  $("fileInput").addEventListener("change", e => {
+    addFiles(e.target.files);
+    e.target.value = "";
+  });
+
+  $("uploadAllBtn").addEventListener("click", uploadAll);
+})();
+</script>
+</body>
+</html>
