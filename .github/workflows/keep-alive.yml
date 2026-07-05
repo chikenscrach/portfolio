@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════════
+# Supabase 保活排程
+# 免費專案「連續 7 天沒有資料庫請求」會自動暫停，
+# 這個排程每週一、週四各查詢一次資料庫，讓專案永遠保持活躍。
+#
+# ★ 這個檔案在 repo 裡的路徑必須是：.github/workflows/keep-alive.yml
+# ★ 需要修改的只有下面兩個值（和 index.html 設定區相同）：
+#     YOUR-PROJECT  → 你的 Supabase Project URL 子網域
+#     YOUR_ANON_KEY → 你的 anon / public key
+#   anon key 本來就是公開金鑰（index.html 裡也有同一把），
+#   放在這裡沒有安全疑慮；但絕對不要把 service_role key 放進來。
+# ═══════════════════════════════════════════════════════════════
+
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # GitHub Actions 使用 UTC 時間。每週一、四的 03:23 UTC 執行
+    #（避開整點尖峰，排程比較不會被延遲）
+    - cron: "23 3 * * 1,4"
+  # 保留手動觸發按鈕，方便你隨時到 Actions 頁面測試
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 查詢一筆資料，讓 Supabase 認定專案仍在使用
+        run: |
+          curl --fail --silent --show-error \
+            "https://afhwwzkfwtfjfbvodgye.supabase.co/rest/v1/works?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmaHd3emtmd3RmamZidm9kZ3llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNDY1MjMsImV4cCI6MjA5ODgyMjUyM30.HBxi7WRUof7lxq6ybNfKOagDrX1JsEjGBwqGnXIz-4E" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmaHd3emtmd3RmamZidm9kZ3llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNDY1MjMsImV4cCI6MjA5ODgyMjUyM30.HBxi7WRUof7lxq6ybNfKOagDrX1JsEjGBwqGnXIz-4E"
+          echo ""
+          echo "✅ Supabase 資料庫回應正常，保活成功"
