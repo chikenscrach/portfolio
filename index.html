@@ -154,18 +154,26 @@
     border-color: var(--seal);
   }
 
-  /* ── 作品牆（CSS 瀑布流） ─────────────────────── */
+  /* ── 作品牆（拼圖式瀑布流：左到右填滿、自動往下） ── */
   .gallery {
-    columns: 1;
-    column-gap: 20px;
-    padding-top: 32px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding-top: 28px;
   }
-  @media (min-width: 560px)  { .gallery { columns: 2; } }
-  @media (min-width: 920px)  { .gallery { columns: 3; } }
+  .gcol {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  @media (min-width: 720px) {
+    .gallery { gap: 20px; }
+    .gcol    { gap: 24px; }
+  }
 
   .card {
-    break-inside: avoid;
-    margin-bottom: 28px;
     cursor: zoom-in;
     border: none;
     background: none;
@@ -227,8 +235,6 @@
 
   /* ── 載入 / 空白 / 錯誤狀態 ──────────────────── */
   .skeleton {
-    break-inside: avoid;
-    margin-bottom: 28px;
     border-radius: 2px;
     background: linear-gradient(100deg, #ECE9E2 40%, #F3F0EA 50%, #ECE9E2 60%);
     background-size: 200% 100%;
@@ -422,6 +428,7 @@
   let allWorks = [];       // 全部作品
   let shown    = [];       // 目前篩選後顯示中的作品
   let lbIndex  = 0;        // 燈箱目前索引
+  let currentCols = 0;     // 目前欄數
 
   /* ── 狀態畫面 ── */
   function showNotice(glyph, title, html) {
@@ -431,12 +438,34 @@
       title + "</h2><p>" + html + "</p></div>";
   }
 
+  /* ── 拼圖式欄位 ── */
+  function colCount() {
+    const w = window.innerWidth;
+    return w < 560 ? 2 : w < 920 ? 3 : 4;
+  }
+
+  function makeCols(n) {
+    gallery.innerHTML = "";
+    const cols = [];
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement("div");
+      c.className = "gcol";
+      gallery.appendChild(c);
+      cols.push(c);
+    }
+    return cols;
+  }
+
   function showSkeletons() {
     stateBox.innerHTML = "";
-    const heights = [220, 300, 180, 260, 210, 320];
-    gallery.innerHTML = heights
-      .map(h => '<div class="skeleton" style="height:' + h + 'px"></div>')
-      .join("");
+    const cols = makeCols(colCount());
+    const heights = [260, 200, 300, 230, 280, 210, 250, 190];
+    heights.forEach((h, i) => {
+      const s = document.createElement("div");
+      s.className = "skeleton";
+      s.style.height = h + "px";
+      cols[i % cols.length].appendChild(s);
+    });
   }
 
   /* ── 取得資料 ── */
@@ -514,7 +543,8 @@
     stateBox.innerHTML = "";
     countEl.textContent = "共 " + list.length + " 件作品";
 
-    gallery.innerHTML = "";
+    currentCols = colCount();
+    const cols = makeCols(currentCols);
     list.forEach((w, i) => {
       const card = document.createElement("button");
       card.className = "card";
@@ -538,7 +568,7 @@
       card.appendChild(img);
       card.appendChild(cap);
       card.addEventListener("click", () => openLightbox(i));
-      gallery.appendChild(card);
+      cols[i % cols.length].appendChild(card);
     });
   }
 
@@ -602,6 +632,15 @@
     if (e.key === "Escape")     closeLightbox();
     if (e.key === "ArrowLeft")  step(-1);
     if (e.key === "ArrowRight") step(1);
+  });
+
+  /* 視窗寬度改變、欄數需要增減時，自動重排 */
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (shown.length && colCount() !== currentCols) render(shown);
+    }, 150);
   });
 
   load();
